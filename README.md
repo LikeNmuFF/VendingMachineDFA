@@ -1,12 +1,27 @@
-# Vending Machine Simulator -DFA with Database Logging
+# Vending Machine Simulator - Deterministic Finite Automaton (DFA) with Database Logging
 
-A Finite State Machine implementation of a vending machine with database history logging in JSON and text formats.
+A true Deterministic Finite Automaton implementation of a vending machine with database history logging in JSON and text formats.
+
+## 🎓 Academic Context
+
+This project implements a formal DFA as defined in automata theory:
+- **Definition**: M = (Q, Σ, δ, q₀, F)
+- **States (Q)**: 5 deterministic states
+- **Input Alphabet (Σ)**: 8 context-specific symbols
+- **Transition Function (δ)**: Table-driven deterministic lookups
+- **Initial State (q₀)**: IDLE
+- **Accepting States (F)**: IDLE
+
+See [DFA_SPECIFICATION.md](DFA_SPECIFICATION.md) and [DFA_STATE_DIAGRAM.md](DFA_STATE_DIAGRAM.md) for formal definitions.
 
 ## Features
 
-- **FSM States**: IDLE, COIN_INSERTED, ITEM_SELECTED, DISPENSING, INSUFFICIENT_FUNDS, OUT_OF_STOCK, RETURNING_CHANGE
+- **DFA States** (5): IDLE → COIN_INSERTED → ITEM_SELECTED → DISPENSING → RETURNING_CHANGE → IDLE
+- **Input Symbols** (8): COIN_5, COIN_10, COIN_20, SELECT_ITEM, CONFIRM, CANCEL, RESET, COLLECT_CHANGE
+- **Determinism**: Each (state, input) pair has exactly ONE next state
+- **Validation**: Data checks happen outside FSM (don't change state, log errors)
 - **Coin denominations**: ₱5, ₱10, ₱20
-- **Product prices**: ₱20–₱40 range
+- **Product prices**: ₱20–₱40 range (9 products)
 - **Database logging**: Automatic persistence of transactions, state transitions, and events
 - **History export**: View and download transaction history as JSON
 
@@ -144,13 +159,47 @@ Health check endpoint.
 
 ```
 vendingMachine/
-├── index.html              # Main UI
-├── server.js               # Express server & API
-├── package.json            # Dependencies
-├── README.md              # This file
-└── data/                  # Created automatically
-    ├── machine_history.json
-    └── machine_history.txt
+├── index.html                    # Main UI with DFA implementation
+├── styles.css                    # Styling (custom color palette)
+├── server.js                     # Express server & API
+├── package.json                  # Dependencies
+├── README.md                     # This file
+├── DFA_SPECIFICATION.md          # Formal DFA definition (Q, Σ, δ, q₀, F)
+├── DFA_STATE_DIAGRAM.md          # Visual state diagrams & transitions
+└── data/                         # Created automatically
+    ├── machine_history.json      # Structured transaction log
+    └── machine_history.txt       # Human-readable log
+```
+
+## Understanding the DFA
+
+### Key Concepts
+
+**Determinism**: For every (state, input) pair, there is exactly ONE next state.
+
+```
+Example: 
+  - (COIN_INSERTED, COIN_5) always → COIN_INSERTED
+  - (COIN_INSERTED, CANCEL) always → RETURNING_CHANGE
+  - No branching based on data values
+```
+
+**Validation Outside FSM**: Data checks (balance ≥ price, stock > 0) happen before transition:
+```
+  - If validation FAILS → No state change (error logged, user can retry)
+  - If validation PASSES → Transition proceeds normally
+  - This maintains FSM determinism
+```
+
+### State Flow
+
+```
+IDLE ─(coins)→ COIN_INSERTED ─(select)→ ITEM_SELECTED ─(confirm)→ DISPENSING ─(auto)→ RETURNING_CHANGE ─(collect)→ IDLE
+       ↑                        ↑              ↑                                           ↑
+       │──(cancel)─────────────┘              │                                           │
+       │                                      │──(cancel)──────────────────────────────────┘
+       │                                                   
+       └─(reset)─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Troubleshooting
@@ -162,6 +211,12 @@ vendingMachine/
 **History not saving?**
 - Verify the `data/` folder has write permissions
 - Check browser console for errors
+
+**Transaction stuck in COIN_INSERTED?**
+- This is correct behavior! If validation fails (insufficient funds or out of stock), 
+  the machine stays in COIN_INSERTED and logs the error
+- User can add more coins or select a different item
+- This is how the DFA maintains determinism
 
 **Port 3000 already in use?**
 Edit `server.js` and change `const PORT = 3000;` to another port.

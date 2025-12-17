@@ -70,6 +70,32 @@
                     </div>
                 </div>
 
+                <div class="dfa-definition">
+                    <h3 class="section-title">🔷 DFA Definition</h3>
+                    <div class="dfa-components">
+                        <div class="dfa-item">
+                            <span class="dfa-symbol">Q</span>
+                            <span class="dfa-description">Set of states</span>
+                        </div>
+                        <div class="dfa-item">
+                            <span class="dfa-symbol">Σ</span>
+                            <span class="dfa-description">Set of input symbols</span>
+                        </div>
+                        <div class="dfa-item">
+                            <span class="dfa-symbol">δ</span>
+                            <span class="dfa-description">Transition function (Q × Σ → Q)</span>
+                        </div>
+                        <div class="dfa-item">
+                            <span class="dfa-symbol">q₀</span>
+                            <span class="dfa-description">Initial state</span>
+                        </div>
+                        <div class="dfa-item">
+                            <span class="dfa-symbol">F</span>
+                            <span class="dfa-description">Set of final/accepting states</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="control-buttons">
                     <button class="action-btn" id="confirmBtn">
                         <span>✅</span> Confirm Purchase
@@ -111,25 +137,62 @@
     <script>
         class VendingMachine {
             constructor() {
-                // States (Q)
+                // States (Q) - Deterministic Finite Automaton States
                 this.STATES = {
-                    IDLE: 'IDLE',
-                    COIN_INSERTED: 'COIN_INSERTED',
-                    ITEM_SELECTED: 'ITEM_SELECTED',
-                    DISPENSING: 'DISPENSING',
-                    INSUFFICIENT_FUNDS: 'INSUFFICIENT_FUNDS',
-                    OUT_OF_STOCK: 'OUT_OF_STOCK',
-                    RETURNING_CHANGE: 'RETURNING_CHANGE'
+                    IDLE: 'IDLE',                      // q0: Initial state
+                    COIN_INSERTED: 'COIN_INSERTED',    // q1: Money in machine
+                    ITEM_SELECTED: 'ITEM_SELECTED',    // q2: Item chosen (sufficient funds)
+                    DISPENSING: 'DISPENSING',          // q3: Dispensing item
+                    RETURNING_CHANGE: 'RETURNING_CHANGE' // q4: Returning change
                 };
 
-                // Input Symbols (Σ)
+                // Input Symbols (Σ) - Each symbol is DETERMINISTIC and context-specific
+                // This ensures transitions are purely based on input, not data conditions
                 this.INPUTS = {
-                    INSERT_COIN: 'INSERT_COIN',
-                    SELECT_ITEM: 'SELECT_ITEM',
+                    // Coins (context-specific)
+                    COIN_5: 'COIN_5',
+                    COIN_10: 'COIN_10',
+                    COIN_20: 'COIN_20',
+                    
+                    // Item selections (context-specific)
+                    SELECT_ITEM: 'SELECT_ITEM',  // Data param specifies which item
+                    
+                    // Control actions
+                    CONFIRM: 'CONFIRM',
                     CANCEL: 'CANCEL',
-                    CONFIRM_PURCHASE: 'CONFIRM_PURCHASE',
                     RESET: 'RESET',
                     COLLECT_CHANGE: 'COLLECT_CHANGE'
+                };
+                
+                // DFA Transition Table: δ(state, input) → new_state
+                // This is the formal DFA definition
+                this.transitionTable = {
+                    'IDLE': {
+                        'COIN_5': 'COIN_INSERTED',
+                        'COIN_10': 'COIN_INSERTED',
+                        'COIN_20': 'COIN_INSERTED',
+                        'RESET': 'IDLE'
+                    },
+                    'COIN_INSERTED': {
+                        'COIN_5': 'COIN_INSERTED',
+                        'COIN_10': 'COIN_INSERTED',
+                        'COIN_20': 'COIN_INSERTED',
+                        'SELECT_ITEM': 'ITEM_SELECTED',  // Validation happens separately
+                        'CANCEL': 'RETURNING_CHANGE',
+                        'RESET': 'IDLE'
+                    },
+                    'ITEM_SELECTED': {
+                        'CONFIRM': 'DISPENSING',
+                        'CANCEL': 'RETURNING_CHANGE',
+                        'RESET': 'IDLE'
+                    },
+                    'DISPENSING': {
+                        // Auto-transition to RETURNING_CHANGE after dispensing
+                    },
+                    'RETURNING_CHANGE': {
+                        'COLLECT_CHANGE': 'IDLE',
+                        'RESET': 'IDLE'
+                    }
                 };
 
                 // Initial state
@@ -236,109 +299,93 @@
                 }
             }
 
-            // Transition Function (δ)
+            // Transition Function (δ) - TRUE DFA: (state, input) → state
             transition(input, data = null) {
                 const previousState = this.state;
                 
-                switch (this.state) {
-                    case this.STATES.IDLE:
-                        if (input === this.INPUTS.INSERT_COIN) {
-                            this.balance += data;
-                            this.state = this.STATES.COIN_INSERTED;
-                            this.logEvent(`Inserted ₱${data.toFixed(2)}, Balance: ₱${this.balance.toFixed(2)}`);
-                        }
-                        break;
-
-                    case this.STATES.COIN_INSERTED:
-                        if (input === this.INPUTS.INSERT_COIN) {
-                            this.balance += data;
-                            this.logEvent(`Added ₱${data.toFixed(2)}, Total: ₱${this.balance.toFixed(2)}`);
-                        } else if (input === this.INPUTS.SELECT_ITEM) {
-                            const product = this.products.find(p => p.id === data);
-                            if (product) {
-                                if (product.stock === 0) {
-                                    this.state = this.STATES.OUT_OF_STOCK;
-                                    this.logEvent(`${product.name} is OUT OF STOCK`);
-                                } else if (this.balance >= product.price) {
-                                    this.selectedItem = product;
-                                    this.state = this.STATES.ITEM_SELECTED;
-                                    this.logEvent(`Selected: ${product.name} - ₱${product.price.toFixed(2)}`);
-                                } else {
-                                    this.state = this.STATES.INSUFFICIENT_FUNDS;
-                                    const needed = (product.price - this.balance).toFixed(2);
-                                    this.logEvent(`INSUFFICIENT FUNDS: Need ₱${needed} more`);
-                                }
+                // Look up deterministic transition in DFA table
+                const nextState = this.transitionTable[this.state]?.[input];
+                
+                // If no valid transition for this (state, input) pair, stay in current state
+                if (!nextState) {
+                    // Log invalid transition
+                    if (input === this.INPUTS.SELECT_ITEM && previousState === this.STATES.COIN_INSERTED) {
+                        // Special handling: validation error messages don't change state
+                        const product = this.products.find(p => p.id === data);
+                        if (product) {
+                            if (product.stock === 0) {
+                                this.logEvent(`❌ ${product.name} is OUT OF STOCK - cannot select`);
+                            } else if (this.balance < product.price) {
+                                const needed = (product.price - this.balance).toFixed(2);
+                                this.logEvent(`❌ INSUFFICIENT FUNDS: Need ₱${needed} more for ${product.name}`);
                             }
-                        } else if (input === this.INPUTS.CANCEL) {
-                            this.change = this.balance;
-                            this.balance = 0;
-                            this.state = this.STATES.RETURNING_CHANGE;
-                            this.logEvent(`Transaction cancelled. Change: ₱${this.change.toFixed(2)}`);
+                        }
+                    }
+                    return; // Stay in current state
+                }
+                
+                // Handle specific input types
+                switch (input) {
+                    case this.INPUTS.COIN_5:
+                        this.balance += 5;
+                        this.logEvent(`Inserted ₱5.00 → Balance: ₱${this.balance.toFixed(2)}`);
+                        break;
+                    case this.INPUTS.COIN_10:
+                        this.balance += 10;
+                        this.logEvent(`Inserted ₱10.00 → Balance: ₱${this.balance.toFixed(2)}`);
+                        break;
+                    case this.INPUTS.COIN_20:
+                        this.balance += 20;
+                        this.logEvent(`Inserted ₱20.00 → Balance: ₱${this.balance.toFixed(2)}`);
+                        break;
+                    
+                    case this.INPUTS.SELECT_ITEM:
+                        const product = this.products.find(p => p.id === data);
+                        if (product) {
+                            this.selectedItem = product;
+                            this.logEvent(`✓ Selected: ${product.name} - ₱${product.price.toFixed(2)}`);
                         }
                         break;
-
-                    case this.STATES.ITEM_SELECTED:
-                        if (input === this.INPUTS.CONFIRM_PURCHASE) {
-                            this.state = this.STATES.DISPENSING;
+                    
+                    case this.INPUTS.CONFIRM:
+                        if (this.selectedItem) {
                             this.logEvent(`Dispensing ${this.selectedItem.name}...`);
-                            this.dispenseItem();
-                        } else if (input === this.INPUTS.CANCEL) {
-                            this.state = this.STATES.RETURNING_CHANGE;
-                            this.change = this.balance;
-                            this.balance = 0;
-                            this.selectedItem = null;
-                            this.logEvent(`Purchase cancelled. Change: $${this.change.toFixed(2)}`);
                         }
                         break;
-
-                    case this.STATES.INSUFFICIENT_FUNDS:
-                        if (input === this.INPUTS.INSERT_COIN) {
-                            this.balance += data;
-                            this.state = this.STATES.COIN_INSERTED;
-                            this.logEvent(`Added ₱${data.toFixed(2)}. Balance: ₱${this.balance.toFixed(2)}`);
-                        } else if (input === this.INPUTS.CANCEL) {
-                            this.state = this.STATES.RETURNING_CHANGE;
-                            this.change = this.balance;
-                            this.balance = 0;
-                            this.logEvent(`Cancelled. Change: ₱${this.change.toFixed(2)}`);
-                        }
+                    
+                    case this.INPUTS.CANCEL:
+                        this.change = this.balance;
+                        this.balance = 0;
+                        this.selectedItem = null;
+                        this.logEvent(`Transaction cancelled. Change: ₱${this.change.toFixed(2)}`);
                         break;
-
-                    case this.STATES.OUT_OF_STOCK:
-                        if (input === this.INPUTS.RESET) {
-                            this.selectedItem = null;
-                            this.state = this.STATES.IDLE;
-                            this.logEvent('Returning to IDLE state');
-                        }
+                    
+                    case this.INPUTS.RESET:
+                        const oldBalance = this.balance;
+                        const oldChange = this.change;
+                        this.balance = 0;
+                        this.change = 0;
+                        this.selectedItem = null;
+                        this.logEvent(`🔄 MACHINE RESET. Refunded: ₱${oldBalance + oldChange}`);
                         break;
-
-                    case this.STATES.DISPENSING:
-                        // Auto-transition handled by dispenseItem()
-                        break;
-
-                    case this.STATES.RETURNING_CHANGE:
-                        if (input === this.INPUTS.COLLECT_CHANGE) {
-                            this.logEvent(`Collected ₱${this.change.toFixed(2)} in change`);
-                            this.change = 0;
-                            this.selectedItem = null;
-                            this.state = this.STATES.IDLE;
-                        }
+                    
+                    case this.INPUTS.COLLECT_CHANGE:
+                        this.logEvent(`Collected ₱${this.change.toFixed(2)} in change`);
+                        this.change = 0;
                         break;
                 }
-
-                // Reset from any state
-                if (input === this.INPUTS.RESET) {
-                    const oldBalance = this.balance;
-                    const oldChange = this.change;
-                    this.balance = 0;
-                    this.change = 0;
-                    this.selectedItem = null;
-                    this.state = this.STATES.IDLE;
-                    this.logEvent(`MACHINE RESET. Refunded: Balance ₱${oldBalance}, Change ₱${oldChange}`);
+                
+                // Apply DFA transition
+                this.state = nextState;
+                
+                // Handle dispensing completion
+                if (this.state === this.STATES.DISPENSING) {
+                    this.dispenseItem();
                 }
-
+                
+                // Log state transition
                 if (previousState !== this.state) {
-                    this.logEvent(`State: ${previousState} → ${this.state}`);
+                    this.logEvent(`[FSM] ${previousState} → ${this.state}`);
                     this.saveState(previousState, this.state, this.balance, this.selectedItem?.name || null);
                 }
 
@@ -428,13 +475,15 @@
                 document.querySelectorAll('.coin-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
                         const amount = parseFloat(btn.dataset.amount);
-                        this.transition(this.INPUTS.INSERT_COIN, amount);
+                        if (amount === 5) this.transition(this.INPUTS.COIN_5);
+                        else if (amount === 10) this.transition(this.INPUTS.COIN_10);
+                        else if (amount === 20) this.transition(this.INPUTS.COIN_20);
                     });
                 });
 
                 // Control buttons
                 document.getElementById('confirmBtn').addEventListener('click', () => {
-                    this.transition(this.INPUTS.CONFIRM_PURCHASE);
+                    this.transition(this.INPUTS.CONFIRM);
                 });
 
                 document.getElementById('cancelBtn').addEventListener('click', () => {
@@ -516,22 +565,26 @@
                 const resetBtn = document.getElementById('resetBtn');
                 const collectBtn = document.getElementById('collectChangeBtn');
 
-                // Enable/disable based on state
+                // Enable/disable based on state (DFA states)
                 confirmBtn.disabled = this.state !== this.STATES.ITEM_SELECTED;
-                cancelBtn.disabled = ![this.STATES.COIN_INSERTED, this.STATES.ITEM_SELECTED, this.STATES.INSUFFICIENT_FUNDS].includes(this.state);
+                cancelBtn.disabled = ![this.STATES.COIN_INSERTED, this.STATES.ITEM_SELECTED].includes(this.state);
                 collectBtn.disabled = this.change === 0;
                 resetBtn.disabled = false;
 
-                // Enable/disable coin buttons
+                // Enable/disable coin buttons (valid in IDLE, COIN_INSERTED)
                 document.querySelectorAll('.coin-btn').forEach(btn => {
-                    btn.disabled = ![this.STATES.IDLE, this.STATES.COIN_INSERTED, this.STATES.INSUFFICIENT_FUNDS].includes(this.state);
+                    btn.disabled = ![this.STATES.IDLE, this.STATES.COIN_INSERTED].includes(this.state);
                 });
 
-                // Enable/disable product buttons
+                // Enable/disable product buttons (valid in COIN_INSERTED with sufficient funds)
                 document.querySelectorAll('.product-item').forEach(item => {
                     const product = this.products.find(p => p.id === item.dataset.id);
                     if (product) {
-                        item.style.pointerEvents = [this.STATES.COIN_INSERTED, this.STATES.INSUFFICIENT_FUNDS].includes(this.state) && product.stock > 0 ? 'auto' : 'none';
+                        const canSelect = this.state === this.STATES.COIN_INSERTED && 
+                                        product.stock > 0 && 
+                                        this.balance >= product.price;
+                        item.style.pointerEvents = canSelect ? 'auto' : 'none';
+                        item.style.opacity = canSelect ? '1' : '0.5';
                     }
                 });
             }

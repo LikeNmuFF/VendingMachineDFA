@@ -384,3 +384,55 @@ h1 {
     from { transform: translateY(0); }
     to { transform: translateY(-10px); }
 }
+
+/* DFA Definition Styles */
+.dfa-definition {
+    background: rgba(74, 127, 167, 0.15);
+    border: 2px solid #4a7fa7;
+    border-radius: 12px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.dfa-definition .section-title {
+    color: #b3cfe5;
+    font-size: 1rem;
+    margin-bottom: 12px;
+}
+
+.dfa-components {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+.dfa-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    background: rgba(179, 207, 229, 0.05);
+    border-left: 3px solid #4a7fa7;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.dfa-symbol {
+    font-weight: bold;
+    color: #b3cfe5;
+    min-width: 25px;
+    font-size: 1rem;
+    font-style: italic;
+}
+
+.dfa-description {
+    color: #f6fafd;
+    opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+    .dfa-item {
+        padding: 6px 8px;
+        font-size: 0.85rem;
+    }
+}
