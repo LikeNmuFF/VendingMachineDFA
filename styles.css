@@ -315,6 +315,40 @@ h1 {
     color: #b3cfe5;
 }
 
+.out-entry {
+    padding: 14px;
+    border-radius: 8px;
+    background: linear-gradient(90deg, rgba(74,127,167,0.15), rgba(179,207,229,0.06));
+    color: #dff6ff;
+    font-weight: bold;
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+.order-section {
+    margin-top: 20px;
+}
+
+.order-box {
+    background: rgba(10,25,49,0.8);
+    border: 2px dashed #4a7fa7;
+    padding: 12px;
+    border-radius: 10px;
+    min-height: 80px;
+}
+
+.order-entry {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-bottom: 1px solid rgba(179,207,229,0.05);
+}
+
+.order-icon { font-size: 1.6rem; }
+.order-name { font-weight: bold; color: #bfe8ff; }
+.order-time { margin-left: auto; color: #9fcfe6; font-size: 0.9rem; }
+
 .timestamp {
     color: #4a7fa7;
     margin-right: 10px;
@@ -380,6 +414,14 @@ h1 {
     animation: bounce 0.5s infinite alternate;
 }
 
+.item-name {
+    font-size: 1rem;
+    margin-top: 6px;
+    color: #f6fafd;
+    font-weight: bold;
+    text-align: center;
+}
+
 @keyframes bounce {
     from { transform: translateY(0); }
     to { transform: translateY(-10px); }
@@ -436,3 +478,12 @@ h1 {
         font-size: 0.85rem;
     }
 }
+
+/* Change log entry styling */
+.change-log-entry {
+    border-left: 4px solid #f0c419;
+    background: rgba(240, 196, 25, 0.06);
+    color: #fff7e6;
+}
+
+.log-entry .timestamp { color: #b3cfe5; opacity: 0.9; margin-right: 8px; }

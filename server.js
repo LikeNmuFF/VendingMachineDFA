@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
@@ -167,6 +167,7 @@ app.get('/api/history/text', (req, res) => {
 app.post('/api/history/clear', (req, res) => {
     try {
         initializeDatabase();
+        
         res.json({ success: true, message: 'History cleared' });
     } catch (err) {
         console.error('Error clearing history:', err);
@@ -179,9 +180,20 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`✓ Vending Machine Server running on http://localhost:${PORT}`);
     console.log(`✓ Database: ${dataDir}`);
     console.log(`✓ JSON: ${jsonDbPath}`);
     console.log(`✓ Text: ${textDbPath}`);
+});
+
+server.on('error', (err) => {
+    if (err && err.code === 'EADDRINUSE') {
+        console.error(`Error: Port ${PORT} is already in use.`);
+        console.error(`Start the server with a different port, for example: PORT=3001 npm start`);
+        process.exit(1);
+    } else {
+        console.error('Server error:', err);
+        process.exit(1);
+    }
 });

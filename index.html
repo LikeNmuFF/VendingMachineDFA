@@ -50,7 +50,8 @@
                 </div>
 
                 <div class="dispensing-animation" id="dispensingAnimation">
-                    <div class="item-icon">🥤</div>
+                    <div class="item-icon" id="dispensedItemIcon">🥤</div>
+                    <div class="item-name" id="dispensedItemName"></div>
                 </div>
             </div>
 
@@ -109,18 +110,23 @@
                     <button class="action-btn" id="collectChangeBtn">
                         <span>💰</span> Collect Change
                     </button>
-                    <button class="action-btn reset-btn" id="historyBtn">
-                        <span>📊</span> View History
-                    </button>
-                    <button class="action-btn cancel-btn" id="clearHistoryBtn">
-                        <span>🗑️</span> Clear History
-                    </button>
+
                 </div>
 
                 <div class="output-section">
-                    <h3 class="section-title">📝 Transaction Log</h3>
+                    <h3 class="section-title">Output Log</h3>
                     <div class="output-area" id="outputLog">
                         <!-- Log entries will appear here -->
+                    </div>
+                </div>
+
+                <div class="order-section">
+                    <h3 class="section-title">Order Out</h3>
+                    <div class="order-box" id="orderBox">
+                        <!-- Dispensed items will appear here -->
+                    </div>
+                    <div style="text-align:center; margin-top:10px;">
+                        <button class="action-btn" id="clearOrderBtn">Clear Order Box</button>
                     </div>
                 </div>
 
@@ -203,18 +209,16 @@
                 this.selectedItem = null;
                 this.change = 0;
                 this.transactionHistory = [];
+                // Control whether logs appear live in the UI
+                // Set to true to show events in the Output-area (`outputLog`)
+                this.uiLogEnabled = true;
                 
                 // Products inventory
                 this.products = [
                     { id: 'A1', name: 'Cola', price: 25.00, stock: 5, icon: '🥤' },
                     { id: 'A2', name: 'Diet Cola', price: 24.00, stock: 3, icon: '🥤' },
-                    { id: 'A3', name: 'Lemonade', price: 22.00, stock: 4, icon: '🧃' },
-                    { id: 'B1', name: 'Chips', price: 30.00, stock: 6, icon: '🍟' },
-                    { id: 'B2', name: 'Chocolate', price: 35.00, stock: 4, icon: '🍫' },
-                    { id: 'B3', name: 'Cookies', price: 28.00, stock: 0, icon: '🍪' },
-                    { id: 'C1', name: 'Water', price: 20.00, stock: 8, icon: '💧' },
-                    { id: 'C2', name: 'Energy Drink', price: 40.00, stock: 2, icon: '⚡' },
-                    { id: 'C3', name: 'Juice', price: 27.00, stock: 3, icon: '🧃' }
+                    { id: 'C2', name: 'Energy Drink', price: 40.00, stock: 2, icon: '⚡' }
+                    
                 ];
 
                 // Database
@@ -395,57 +399,139 @@
 
             // Helper methods
             dispenseItem() {
-                // Show animation
+                // Show animation and set dispensed icon/name
                 const animation = document.getElementById('dispensingAnimation');
+                const iconEl = document.getElementById('dispensedItemIcon');
+                const nameEl = document.getElementById('dispensedItemName');
+                if (iconEl) iconEl.textContent = this.selectedItem.icon || '🍫';
+                if (nameEl) nameEl.textContent = this.selectedItem.name || '';
+                // Ensure animation restarts
                 animation.style.display = 'flex';
-                
+                animation.style.animation = 'none';
+                // force reflow
+                // eslint-disable-next-line no-unused-expressions
+                animation.offsetWidth;
+                animation.style.animation = '';
+
                 // Update inventory
                 this.selectedItem.stock--;
-                this.change = this.balance - this.selectedItem.price;
-                
-                // Save transaction
+                // Raw change computation
+                let rawChange = this.balance - this.selectedItem.price;
+
+                // Detect anomalies: NaN, infinite, negative
+                if (!isFinite(rawChange) || Number.isNaN(rawChange)) {
+                    this.logEvent(`❗ CHANGE_CALC_ERROR: invalid change value (${rawChange}). Setting change to ₱0.00`);
+                    rawChange = 0;
+                }
+
+                // Round to 2 decimals for currency
+                const roundedChange = Number(rawChange.toFixed(2));
+
+                // Log rounding differences (floating point issues)
+                if (Math.abs(roundedChange - rawChange) > 0.000001) {
+                    this.logEvent(`⚠️ CHANGE_ROUNDING: computed=${rawChange} → rounded=₱${roundedChange.toFixed(2)}`);
+                }
+
+                // If negative (shouldn't happen), clamp and log
+                if (roundedChange < 0) {
+                    this.logEvent(`❌ CHANGE_NEGATIVE: computed change ₱${roundedChange.toFixed(2)} < 0 — correcting to ₱0.00`);
+                    this.change = 0;
+                } else {
+                    this.change = roundedChange;
+                }
+
+                // Save transaction (paid amount is item price + change returned)
                 const itemPrice = this.selectedItem.price;
-                const paidAmount = itemPrice + this.change;
+                const paidAmount = Number((itemPrice + this.change).toFixed(2));
                 this.saveTransaction(this.selectedItem.name, itemPrice, paidAmount, this.change);
-                
-                // Log transaction
+
+                // Log transaction summary in history
                 this.transactionHistory.push({
                     item: this.selectedItem.name,
                     price: this.selectedItem.price,
+                    paid: paidAmount,
+                    change: this.change,
                     time: new Date().toISOString()
                 });
 
                 setTimeout(() => {
                     animation.style.display = 'none';
+                    // clear icon/name after animation completes
+                    if (iconEl) iconEl.textContent = '🥤';
+                    if (nameEl) nameEl.textContent = '';
+
+                    // Show OUT message in output area and also log normally
+                    this.showOutMessage(`OUT → ${this.selectedItem.name}`);
                     this.logEvent(`Enjoy your ${this.selectedItem.name}!`);
                     this.state = this.STATES.RETURNING_CHANGE;
                     this.balance = 0;
                     this.updateDisplay();
                     this.updateButtonStates();
-                    
+
                     if (this.change > 0) {
                         this.logEvent(`Change to return: ₱${this.change.toFixed(2)}`);
                     }
+
+                    // Add dispensed item to order chute
+                    this.addOrderEntry({
+                        icon: this.selectedItem.icon || '🥤',
+                        name: this.selectedItem.name,
+                        time: new Date().toLocaleTimeString()
+                    });
                 }, 2000);
+            }
+
+            addOrderEntry(entry) {
+                const orderBox = document.getElementById('orderBox');
+                if (!orderBox) return;
+                const div = document.createElement('div');
+                div.className = 'order-entry';
+                div.innerHTML = `<div class="order-icon">${entry.icon}</div><div class="order-name">${entry.name}</div><div class="order-time">${entry.time}</div>`;
+                orderBox.prepend(div);
+                // keep last 10
+                const entries = orderBox.querySelectorAll('.order-entry');
+                if (entries.length > 10) entries[entries.length - 1].remove();
             }
 
             logEvent(message) {
                 const timestamp = new Date().toLocaleTimeString();
-                const logEntry = document.createElement('div');
-                logEntry.className = 'log-entry';
-                logEntry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
-                
-                const logDiv = document.getElementById('outputLog');
-                logDiv.prepend(logEntry);
-                
-                // Save to database
+                // Persist log to server/text file always
                 this.saveLogEvent(message);
-                
-                // Keep only last 15 entries
-                const entries = logDiv.querySelectorAll('.log-entry');
-                if (entries.length > 15) {
-                    entries[entries.length - 1].remove();
+
+                // If UI logging is enabled, also show in the output panel
+                if (this.uiLogEnabled) {
+                    const logEntry = document.createElement('div');
+                    logEntry.className = 'log-entry';
+                    logEntry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+
+                    // Highlight change-calculation related messages
+                    const changeKeywords = ['Change', 'CHANGE', 'CHANGE_ROUNDING', 'CHANGE_CALC_ERROR', 'CHANGE_NEGATIVE', 'Change to return', 'Collected'];
+                    if (changeKeywords.some(k => message.includes(k))) {
+                        logEntry.classList.add('change-log-entry');
+                    }
+
+                    const logDiv = document.getElementById('outputLog');
+                    logDiv.prepend(logEntry);
+
+                    // Keep only last 15 entries in the UI
+                    const entries = logDiv.querySelectorAll('.log-entry');
+                    if (entries.length > 15) {
+                        entries[entries.length - 1].remove();
+                    }
                 }
+            }
+
+            // Show a single OUT message in the output area and clear previous entries
+            showOutMessage(message) {
+                const logDiv = document.getElementById('outputLog');
+                if (!logDiv) return;
+                // Clear existing entries
+                logDiv.innerHTML = '';
+                const outEntry = document.createElement('div');
+                outEntry.className = 'out-entry';
+                const timestamp = new Date().toLocaleTimeString();
+                outEntry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+                logDiv.prepend(outEntry);
             }
 
             // UI Methods
@@ -499,12 +585,24 @@
                 });
 
                 document.getElementById('historyBtn').addEventListener('click', () => {
-                    this.displayHistory();
+                    // Load server text log instead of showing live UI logs
+                    this.displayTextLog();
                 });
 
                 document.getElementById('clearHistoryBtn').addEventListener('click', () => {
                     if (confirm('Are you sure you want to clear all machine history?')) {
-                        this.clearHistory();
+                        this.clearTextLog();
+                        // also clear the order box
+                        const orderBox = document.getElementById('orderBox');
+                        if (orderBox) orderBox.innerHTML = '';
+                    }
+                });
+
+                // Clear order box button
+                document.getElementById('clearOrderBtn').addEventListener('click', () => {
+                    if (confirm('Clear the order output?')) {
+                        const orderBox = document.getElementById('orderBox');
+                        if (orderBox) orderBox.innerHTML = '';
                     }
                 });
 
@@ -587,6 +685,13 @@
                         item.style.opacity = canSelect ? '1' : '0.5';
                     }
                 });
+            }
+
+            // Fetch and display the server text log (machine_history.txt)
+            async displayTextLog() {
+                
+                
+
             }
 
             displayHistory() {
